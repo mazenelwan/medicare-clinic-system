@@ -14,7 +14,18 @@
     t.className = 'toast ' + (type || '');
     t.textContent = msg;
     stack.appendChild(t);
-    setTimeout(() => { t.remove(); }, 3200);
+    setTimeout(() => { t.remove(); }, 4200);
+  }
+
+  /* One-time message that survives a redirect (e.g. "no permission"). */
+  function flash(msg, type) { try { sessionStorage.setItem('mc_flash', JSON.stringify({ msg: msg, type: type || '' })); } catch (e) { /* ignore */ } }
+  function showFlash() {
+    try {
+      const raw = sessionStorage.getItem('mc_flash'); if (!raw) return null;
+      sessionStorage.removeItem('mc_flash');
+      const f = JSON.parse(raw); if (f && f.msg) { toast(f.msg, f.type); return f; }
+    } catch (e) { /* ignore */ }
+    return null;
   }
 
   /* ---------- modal ---------- */
@@ -69,7 +80,7 @@
     const initials = user.name.replace(/^Dr\.?\s*/i, '').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
     host.innerHTML =
       '<header class="site-header"><div class="container nav-bar">' +
-      '<a class="brand" href="' + MC.Auth.home(user.role) + '"><span class="brand-mark" aria-hidden="true">✚</span>MediCare</a>' +
+      '<a class="brand" href="' + MC.Access.home(user.role) + '"><span class="brand-mark" aria-hidden="true">✚</span>MediCare</a>' +
       '<button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="navMenu">☰</button>' +
       '<div class="nav-menu" id="navMenu" style="display:contents">' +
       '<nav aria-label="Main"><ul class="nav-links">' + links + '</ul></nav>' +
@@ -84,7 +95,7 @@
     sync();
     (mq.addEventListener ? mq.addEventListener('change', sync) : mq.addListener(sync));
     toggle.addEventListener('click', () => { const o = menu.classList.toggle('open'); toggle.setAttribute('aria-expanded', String(o)); });
-    document.getElementById('logoutBtn').addEventListener('click', () => { MC.Auth.logout(); location.href = 'index.html'; });
+    document.getElementById('logoutBtn').addEventListener('click', () => { MC.Auth.logout(); location.href = MC.Access.loginFor(user.role); });
   }
 
   function renderFooter() {
@@ -93,20 +104,39 @@
     host.innerHTML = '<footer class="site-footer"><div class="container"><span>© ' + new Date().getFullYear() + ' MediCare Clinic Appointments</span><span>Demo project – data is stored in your browser only.</span></div></footer>';
   }
 
-  /* ---------- page bootstrap ---------- */
-  // roles: array of allowed roles. Returns the current user (or null when redirecting).
+  /* ---------- access control for protected pages ---------- */
+  // Returns the signed-in user, or null after redirecting (not logged in, or role not allowed on this page).
+  function enforce(page) {
+    const user = MC.Auth.current();
+    if (!user) { location.replace(MC.Access.loginForPage(page) + '?next=' + encodeURIComponent(page + location.search)); return null; }
+    if (!MC.Access.canAccess(page, user)) {
+      flash('You do not have permission to open that page.', 'error');
+      location.replace(MC.Access.home(user.role));
+      return null;
+    }
+    return user;
+  }
+
   function init(opts) {
     opts = opts || {};
-    const user = MC.Auth.current();
-    if (!user) { location.replace('index.html?next=' + encodeURIComponent(location.pathname.split('/').pop() + location.search)); return null; }
-    if (opts.roles && !opts.roles.includes(user.role)) { location.replace(MC.Auth.home(user.role)); return null; }
-    renderHeader(user, opts.active || location.pathname.split('/').pop());
+    const page = MC.Access.pageName(location.pathname);
+    const user = enforce(page);
+    if (!user) return null;
+    renderHeader(user, opts.active || page);
     renderFooter();
+    showFlash();
+
+    // Keep the page honest if the session changes elsewhere: logging out in another tab,
+    // an admin disabling this account, or the browser restoring a cached page after logout.
+    window.addEventListener('storage', function (e) {
+      if (e.key === 'mc_session' || e.key === 'mc_users') enforce(page);
+    });
+    window.addEventListener('pageshow', function (e) { if (e.persisted) enforce(page); });
     return user;
   }
 
   function statusBadge(s) { return '<span class="badge ' + esc(s) + '">' + esc(s) + '</span>'; }
   function param(name) { return new URLSearchParams(location.search).get(name); }
 
-  global.App = { esc, toast, modal, confirmBox, init, statusBadge, param, renderFooter };
+  global.App = { esc, toast, flash, showFlash, modal, confirmBox, init, statusBadge, param, renderFooter };
 })(window);
