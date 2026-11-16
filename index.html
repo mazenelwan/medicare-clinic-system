@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Login – MediCare</title>
+  <title>Patient Login – MediCare</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%230f766e%27/%3E%3Cpath d=%27M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z%27 fill=%27white%27/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -24,8 +24,14 @@
 
     <section class="auth-panel">
       <div class="auth-box">
-        <!-- Login form -->
-        <div id="loginView">
+        <p class="small muted" style="margin:0 0 10px"><strong>Patient portal</strong></p>
+        <div class="seg" role="tablist" aria-label="Patient account">
+          <button type="button" role="tab" id="tabLogin" aria-selected="true" aria-controls="loginView" data-view="loginView">Log in</button>
+          <button type="button" role="tab" id="tabRegister" aria-selected="false" aria-controls="registerView" data-view="registerView">Create account</button>
+        </div>
+
+        <!-- Log in -->
+        <div id="loginView" role="tabpanel" aria-labelledby="tabLogin">
           <h1>Welcome back</h1>
           <p class="muted">Log in to manage your appointments.</p>
           <div id="loginAlert" class="alert error hidden" role="alert"></div>
@@ -42,19 +48,12 @@
             </div>
             <button class="btn btn-primary btn-block" type="submit">Log in</button>
           </form>
-          <p class="small muted" style="margin:18px 0 0">Demo accounts (password <strong>1234</strong>):</p>
-          <div class="demo-accounts">
-            <button type="button" data-email="patient@demo.com">Patient</button>
-            <button type="button" data-email="doctor@demo.com">Doctor</button>
-            <button type="button" data-email="admin@demo.com">Admin</button>
-          </div>
-          <p class="switch-line">New patient? <button class="link-btn" id="showRegister" type="button">Create an account</button></p>
         </div>
 
-        <!-- Register form -->
-        <div id="registerView" class="hidden">
-          <h1>Create your account</h1>
-          <p class="muted">Register as a patient to start booking.</p>
+        <!-- Patient sign-up -->
+        <div id="registerView" class="hidden" role="tabpanel" aria-labelledby="tabRegister">
+          <h1>Create your patient account</h1>
+          <p class="muted">Register to start booking appointments.</p>
           <div id="registerAlert" class="alert error hidden" role="alert"></div>
           <form id="registerForm" class="form" novalidate>
             <div class="field">
@@ -76,6 +75,7 @@
               <div class="field">
                 <label for="regPassword">Password</label>
                 <input id="regPassword" type="password" autocomplete="new-password" required>
+                <div class="hint">8+ characters with a letter and a number.</div>
                 <div class="error"></div>
               </div>
               <div class="field">
@@ -86,69 +86,26 @@
             </div>
             <button class="btn btn-primary btn-block" type="submit">Create account</button>
           </form>
-          <p class="switch-line">Already registered? <button class="link-btn" id="showLogin" type="button">Log in</button></p>
         </div>
+
+        <p class="portal-links">
+          Are you a doctor? <a href="doctor-login.html">Doctor login / apply</a><br>
+          Clinic staff? <a href="admin-login.html">Administrator login</a>
+        </p>
       </div>
     </section>
   </div>
 
   <script src="js/data.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/auth-ui.js"></script>
   <script>
     (function () {
-      var existing = MC.Auth.current();
-      if (existing) { location.replace(MC.Auth.home(existing.role)); return; }
-
-      var $ = function (id) { return document.getElementById(id); };
-      var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-      function setErr(input, msg) {
-        var f = input.closest('.field');
-        f.classList.toggle('invalid', !!msg);
-        f.querySelector('.error').textContent = msg || '';
-        return !msg;
-      }
-      function showAlert(el, msg) { el.textContent = msg; el.classList.remove('hidden'); }
-      function nextUrl(user) {
-        var n = App.param('next');
-        // only allow same-folder relative page names
-        if (n && /^[a-z0-9-]+\.html(\?[^#]*)?$/i.test(n)) return n;
-        return MC.Auth.home(user.role);
-      }
-
-      $('showRegister').addEventListener('click', function () { $('loginView').classList.add('hidden'); $('registerView').classList.remove('hidden'); $('regName').focus(); });
-      $('showLogin').addEventListener('click', function () { $('registerView').classList.add('hidden'); $('loginView').classList.remove('hidden'); $('loginEmail').focus(); });
-
-      document.querySelectorAll('.demo-accounts button').forEach(function (b) {
-        b.addEventListener('click', function () { $('loginEmail').value = b.dataset.email; $('loginPassword').value = '1234'; $('loginForm').requestSubmit(); });
-      });
-
-      $('loginForm').addEventListener('submit', function (e) {
-        e.preventDefault();
-        $('loginAlert').classList.add('hidden');
-        var em = $('loginEmail'), pw = $('loginPassword');
-        var ok = setErr(em, !em.value.trim() ? 'Email is required.' : !emailRe.test(em.value.trim()) ? 'Enter a valid email address.' : '');
-        ok = setErr(pw, !pw.value ? 'Password is required.' : '') && ok;
-        if (!ok) return;
-        var r = MC.Auth.login(em.value, pw.value);
-        if (!r.ok) { showAlert($('loginAlert'), r.error); return; }
-        location.href = nextUrl(r.user);
-      });
-
-      $('registerForm').addEventListener('submit', function (e) {
-        e.preventDefault();
-        $('registerAlert').classList.add('hidden');
-        var n = $('regName'), em = $('regEmail'), ph = $('regPhone'), pw = $('regPassword'), cf = $('regConfirm');
-        var ok = setErr(n, n.value.trim().length < 3 ? 'Enter your full name.' : '');
-        ok = setErr(em, !emailRe.test(em.value.trim()) ? 'Enter a valid email address.' : '') && ok;
-        ok = setErr(ph, ph.value && !/^[+\d][\d\s-]{6,}$/.test(ph.value.trim()) ? 'Enter a valid phone number.' : '') && ok;
-        ok = setErr(pw, pw.value.length < 4 ? 'Use at least 4 characters.' : '') && ok;
-        ok = setErr(cf, cf.value !== pw.value ? 'Passwords do not match.' : '') && ok;
-        if (!ok) return;
-        var r = MC.Auth.register({ name: n.value, email: em.value, phone: ph.value, password: pw.value });
-        if (!r.ok) { showAlert($('registerAlert'), r.error); return; }
-        location.href = nextUrl(r.user);
-      });
+      if (AuthUI.redirectIfSignedIn()) return;
+      App.showFlash();
+      AuthUI.bindTabs();
+      AuthUI.bindLogin('patient');
+      AuthUI.bindPatientRegister();
     })();
   </script>
 </body>

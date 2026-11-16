@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Login – MediCare</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%230f766e%27/%3E%3Cpath d=%27M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z%27 fill=%27white%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="auth-wrap">
+    <section class="auth-hero admin" aria-label="Administration">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">✚</span>MediCare</a>
+      <div>
+        <h1>Clinic administration.</h1>
+        <p>Review doctor applications, manage users and oversee every appointment.</p>
+      </div>
+      <ul>
+        <li><span aria-hidden="true">✔️</span> Approve or reject doctor applications</li>
+        <li><span aria-hidden="true">👥</span> Manage doctors, patients and admins</li>
+        <li><span aria-hidden="true">📋</span> Monitor all appointments</li>
+      </ul>
+    </section>
+
+    <section class="auth-panel">
+      <div class="auth-box">
+        <p class="small muted" style="margin:0 0 10px"><strong>Administrator portal</strong></p>
+        <h1>Administrator login</h1>
+        <p class="muted">Authorised staff only.</p>
+        <div id="loginAlert" class="alert error hidden" role="alert"></div>
+        <form id="loginForm" class="form" novalidate>
+          <div class="field">
+            <label for="loginEmail">Email</label>
+            <input id="loginEmail" type="email" autocomplete="username" placeholder="admin@example.com" required>
+            <div class="error"></div>
+          </div>
+          <div class="field">
+            <label for="loginPassword">Password</label>
+            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Your password" required>
+            <div class="error"></div>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">Log in</button>
+        </form>
+        <div class="notice" style="margin-top:18px"><span aria-hidden="true">🔒</span><span><strong>No public sign-up.</strong> Administrator accounts can only be created by an existing administrator from inside the dashboard.</span></div>
+
+        <p class="portal-links">
+          Patient? <a href="index.html">Patient login</a><br>
+          Doctor? <a href="doctor-login.html">Doctor login / apply</a>
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/auth-ui.js"></script>
+  <script>
+    (function () {
+      if (AuthUI.redirectIfSignedIn()) return;
+      App.showFlash();
+      AuthUI.bindLogin('admin');
+    })();
+  </script>
+</body>
+</html>

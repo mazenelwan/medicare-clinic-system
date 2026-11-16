@@ -120,7 +120,11 @@
       $('list').addEventListener('click', function (e) {
         var b = e.target.closest('[data-act]'); if (!b) return;
         var act = b.dataset.act, id = b.dataset.id;
-        function apply() { MC.Appts.setStatus(id, act); App.toast('Appointment ' + act + '.', 'ok'); renderStats(); renderList(); }
+        function apply() {
+          var r = MC.Appts.setStatus(id, act);
+          if (!r.ok) { App.toast(r.error, 'error'); return; }
+          App.toast('Appointment ' + act + '.', 'ok'); renderStats(); renderList();
+        }
         if (act === 'cancelled') App.confirmBox('Cancel this appointment?', 'The patient will see it as cancelled and the slot becomes free again.', 'Yes, cancel', apply);
         else apply();
       });
@@ -143,7 +147,8 @@
         if (en <= s) { App.toast('End time must be after start time.', 'error'); return; }
         if (!(fee >= 0) || $('fee').value === '') { feeF.classList.add('invalid'); feeF.querySelector('.error').textContent = 'Enter a valid fee.'; return; }
         feeF.classList.remove('invalid'); feeF.querySelector('.error').textContent = '';
-        MC.Doctors.update(doc.id, { days: days, start: s, end: en, fee: fee });
+        var r = MC.Doctors.update(doc.id, { days: days, start: s, end: en, fee: fee });
+        if (!r.ok) { App.toast(r.error, 'error'); return; }
         App.toast('Schedule saved.', 'ok');
       });
 

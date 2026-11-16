@@ -76,7 +76,7 @@
           if (s === 'fee-asc') return a.fee - b.fee;
           if (s === 'fee-desc') return b.fee - a.fee;
           if (s === 'name') return a.name.localeCompare(b.name);
-          return b.rating - a.rating;
+          return (b.rating || 0) - (a.rating || 0);
         });
         $('resultCount').textContent = list.length + (list.length === 1 ? ' doctor found' : ' doctors found');
         if (!list.length) {
@@ -87,7 +87,7 @@
         $('list').innerHTML = list.map(function (d) {
           return '<article class="card doctor-card"><div class="doctor-top"><span class="avatar md">' + esc(MC.Doctors.initials(d.name)) + '</span>' +
             '<div style="min-width:0"><h3>' + esc(d.name) + '</h3><span class="muted small">' + esc(d.specialty) + '</span></div></div>' +
-            '<div class="doctor-meta"><span class="rating" aria-label="Rating ' + d.rating + ' out of 5">★ ' + d.rating.toFixed(1) + ' <span class="muted small">(' + d.reviews + ')</span></span><span class="tag">' + d.experience + ' yrs</span><span class="tag">' + d.fee + ' EGP</span></div>' +
+            '<div class="doctor-meta"><span class="rating">' + esc(MC.Doctors.ratingLabel(d, true)) + '</span><span class="tag">' + d.experience + ' yrs</span><span class="tag">' + d.fee + ' EGP</span></div>' +
             '<p class="muted small" style="margin:0">📍 ' + esc(d.location) + '</p>' +
             '<div class="btn-row"><a class="btn btn-outline btn-sm" href="doctor-profile.html?id=' + encodeURIComponent(d.id) + '">View profile</a>' +
             (canBook ? '<a class="btn btn-primary btn-sm" href="booking.html?doctor=' + encodeURIComponent(d.id) + '">Book now</a>' : '') + '</div></article>';

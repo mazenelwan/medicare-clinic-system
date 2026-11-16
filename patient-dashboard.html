@@ -93,10 +93,10 @@
         return '<a class="tag" href="doctors.html?specialty=' + encodeURIComponent(s) + '">' + esc(s) + '</a>';
       }).join('');
 
-      var top = MC.Doctors.active().slice().sort(function (a, b) { return b.rating - a.rating; }).slice(0, 3);
+      var top = MC.Doctors.active().slice().sort(function (a, b) { return (b.rating || 0) - (a.rating || 0); }).slice(0, 3);
       document.getElementById('topDoctors').innerHTML = top.map(function (d) {
         return '<article class="card doctor-card"><div class="doctor-top"><span class="avatar md">' + esc(MC.Doctors.initials(d.name)) + '</span><div><h3>' + esc(d.name) + '</h3><span class="muted small">' + esc(d.specialty) + '</span></div></div>' +
-          '<div class="doctor-meta"><span class="rating">★ ' + d.rating.toFixed(1) + '</span><span class="tag">' + d.experience + ' yrs exp.</span><span class="tag">' + d.fee + ' EGP</span></div>' +
+          '<div class="doctor-meta"><span class="rating">' + esc(MC.Doctors.ratingLabel(d)) + '</span><span class="tag">' + d.experience + ' yrs exp.</span><span class="tag">' + d.fee + ' EGP</span></div>' +
           '<div class="btn-row"><a class="btn btn-outline btn-sm" href="doctor-profile.html?id=' + encodeURIComponent(d.id) + '">View profile</a><a class="btn btn-primary btn-sm" href="booking.html?doctor=' + encodeURIComponent(d.id) + '">Book now</a></div></article>';
       }).join('');
     })();

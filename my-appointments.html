@@ -82,7 +82,8 @@
         var b = e.target.closest('[data-cancel]'); if (!b) return;
         var id = b.dataset.cancel;
         App.confirmBox('Cancel appointment?', 'This will free the time slot. You can book again at any time.', 'Yes, cancel it', function () {
-          MC.Appts.setStatus(id, 'cancelled');
+          var r = MC.Appts.setStatus(id, 'cancelled');
+          if (!r.ok) { App.toast(r.error, 'error'); return; }
           App.toast('Appointment cancelled.', 'ok');
           render();
         });

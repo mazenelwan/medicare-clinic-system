@@ -24,7 +24,8 @@
       var root = document.getElementById('content');
       var d = MC.Doctors.byId(App.param('id'));
 
-      if (!d || d.status === 'disabled') {
+      // Unlisted doctors (pending, rejected, disabled) are only returned to an admin or to that doctor.
+      if (!d) {
         root.innerHTML = '<div class="card empty"><div class="big" aria-hidden="true">🩺</div><h2>Doctor not found</h2><p>This profile does not exist or is no longer available.</p><a class="btn btn-primary" href="doctors.html">Back to doctors</a></div>';
         return;
       }
@@ -32,7 +33,7 @@
 
       var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       function hr(h) { return U.fmtTime((h < 10 ? '0' : '') + h + ':00'); }
-      var canBook = user.role === 'patient';
+      var canBook = user.role === 'patient' && d.status === 'active';
 
       // next 3 available days
       var next = [];
@@ -51,8 +52,8 @@
         '<div class="split">' +
         '<div style="display:grid;gap:18px">' +
           '<section class="card"><div class="profile-hero"><span class="avatar lg">' + esc(MC.Doctors.initials(d.name)) + '</span>' +
-            '<div class="info"><h1 style="margin-bottom:4px">' + esc(d.name) + '</h1><p class="muted" style="margin-bottom:8px">' + esc(d.specialty) + '</p>' +
-            '<div class="doctor-meta"><span class="rating">★ ' + d.rating.toFixed(1) + ' <span class="muted small">(' + d.reviews + ' reviews)</span></span><span class="tag">' + d.experience + ' years experience</span><span class="tag">' + d.fee + ' EGP / visit</span></div></div>' +
+            '<div class="info"><h1 style="margin-bottom:4px">' + esc(d.name) + '</h1><p class="muted" style="margin-bottom:8px">' + esc(d.specialty) + (d.status !== 'active' ? ' &nbsp;' + App.statusBadge(d.status) : '') + '</p>' +
+            '<div class="doctor-meta"><span class="rating">' + esc(MC.Doctors.ratingLabel(d, false)) + (d.reviews > 0 ? ' <span class="muted small">(' + d.reviews + ' reviews)</span>' : '') + '</span><span class="tag">' + d.experience + ' years experience</span><span class="tag">' + d.fee + ' EGP / visit</span></div></div>' +
             (canBook ? '<div class="btn-row"><a class="btn btn-primary" href="booking.html?doctor=' + encodeURIComponent(d.id) + '">Book appointment</a></div>' : '') +
           '</div></section>' +
           '<section class="card"><h2>About</h2><p>' + esc(d.bio || 'No biography provided yet.') + '</p>' +
