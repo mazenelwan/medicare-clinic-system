@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patient Dashboard – MediCare</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%230f766e%27/%3E%3Cpath d=%27M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z%27 fill=%27white%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+  <main>
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <h1 id="welcome">Welcome</h1>
+          <p>Here is an overview of your health appointments.</p>
+        </div>
+        <a class="btn btn-primary" href="doctors.html">＋ Book an appointment</a>
+      </div>
+
+      <section class="grid grid-4" aria-label="Summary" id="stats" style="margin-bottom:22px"></section>
+
+      <div class="split">
+        <section class="card" aria-labelledby="upTitle">
+          <div class="card-head">
+            <h2 id="upTitle">Upcoming appointments</h2>
+            <a class="btn btn-outline btn-sm" href="my-appointments.html">View all</a>
+          </div>
+          <div id="upcoming" class="appt-list"></div>
+        </section>
+
+        <aside style="display:grid;gap:18px">
+          <section class="card" aria-labelledby="specTitle">
+            <h2 id="specTitle">Browse by specialty</h2>
+            <div class="doctor-meta" id="specialties"></div>
+          </section>
+          <section class="card" aria-labelledby="quickTitle">
+            <h2 id="quickTitle">Quick actions</h2>
+            <div class="btn-row" style="flex-direction:column">
+              <a class="btn btn-outline" href="doctors.html">🔍 Find a doctor</a>
+              <a class="btn btn-outline" href="my-appointments.html">📋 My appointments</a>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <section style="margin-top:26px" aria-labelledby="topTitle">
+        <div class="card-head"><h2 id="topTitle">Top rated doctors</h2><a class="btn btn-outline btn-sm" href="doctors.html">See all doctors</a></div>
+        <div class="grid grid-3" id="topDoctors"></div>
+      </section>
+    </div>
+  </main>
+  <div id="site-footer"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (function () {
+      var user = App.init({ roles: ['patient'], active: 'patient-dashboard.html' });
+      if (!user) return;
+      var U = MC.util, esc = App.esc;
+
+      document.getElementById('welcome').textContent = 'Welcome, ' + user.name.split(' ')[0] + ' 👋';
+
+      var mine = MC.Appts.forPatient(user.id);
+      var upcoming = mine.filter(MC.Appts.isUpcoming).sort(function (a, b) { return (a.date + a.time).localeCompare(b.date + b.time); });
+      var completed = mine.filter(function (a) { return a.status === 'completed'; });
+      var pending = mine.filter(function (a) { return a.status === 'pending'; });
+
+      function stat(icon, cls, n, label) {
+        return '<div class="card stat"><div class="stat-icon ' + cls + '" aria-hidden="true">' + icon + '</div><div><strong>' + n + '</strong><span>' + label + '</span></div></div>';
+      }
+      document.getElementById('stats').innerHTML =
+        stat('📅', '', upcoming.length, 'Upcoming') +
+        stat('⏳', 'amber', pending.length, 'Awaiting confirmation') +
+        stat('✅', 'green', completed.length, 'Completed visits') +
+        stat('🩺', 'blue', MC.Doctors.active().length, 'Doctors available');
+
+      function apptRow(a) {
+        var d = MC.Doctors.byId(a.doctorId) || { name: 'Unknown doctor', specialty: '' };
+        var dt = U.parseISO(a.date);
+        return '<article class="appt"><div class="appt-main"><div class="appt-date"><strong>' + dt.getDate() + '</strong><span>' + dt.toLocaleDateString('en-GB', { month: 'short' }) + '</span></div>' +
+          '<div style="min-width:0"><h3>' + esc(d.name) + '</h3><p>' + esc(d.specialty) + ' · ' + U.fmtTime(a.time) + '</p><p>' + esc(a.reason || '') + '</p></div></div>' +
+          '<div class="appt-actions">' + App.statusBadge(a.status) + '<a class="btn btn-outline btn-sm" href="my-appointments.html">Manage</a></div></article>';
+      }
+      var up = document.getElementById('upcoming');
+      up.innerHTML = upcoming.length
+        ? upcoming.slice(0, 3).map(apptRow).join('')
+        : '<div class="empty"><div class="big" aria-hidden="true">📭</div><p>You have no upcoming appointments.</p><a class="btn btn-primary" href="doctors.html">Book your first visit</a></div>';
+
+      document.getElementById('specialties').innerHTML = MC.Doctors.specialties().map(function (s) {
+        return '<a class="tag" href="doctors.html?specialty=' + encodeURIComponent(s) + '">' + esc(s) + '</a>';
+      }).join('');
+
+      var top = MC.Doctors.active().slice().sort(function (a, b) { return b.rating - a.rating; }).slice(0, 3);
+      document.getElementById('topDoctors').innerHTML = top.map(function (d) {
+        return '<article class="card doctor-card"><div class="doctor-top"><span class="avatar md">' + esc(MC.Doctors.initials(d.name)) + '</span><div><h3>' + esc(d.name) + '</h3><span class="muted small">' + esc(d.specialty) + '</span></div></div>' +
+          '<div class="doctor-meta"><span class="rating">★ ' + d.rating.toFixed(1) + '</span><span class="tag">' + d.experience + ' yrs exp.</span><span class="tag">' + d.fee + ' EGP</span></div>' +
+          '<div class="btn-row"><a class="btn btn-outline btn-sm" href="doctor-profile.html?id=' + encodeURIComponent(d.id) + '">View profile</a><a class="btn btn-primary btn-sm" href="booking.html?doctor=' + encodeURIComponent(d.id) + '">Book now</a></div></article>';
+      }).join('');
+    })();
+  </script>
+</body>
+</html>

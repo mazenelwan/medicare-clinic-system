@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doctor Profile – MediCare</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%230f766e%27/%3E%3Cpath d=%27M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z%27 fill=%27white%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+  <main>
+    <div class="container" id="content"></div>
+  </main>
+  <div id="site-footer"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (function () {
+      var user = App.init({ active: 'doctor-profile.html' });
+      if (!user) return;
+      var esc = App.esc, U = MC.util;
+      var root = document.getElementById('content');
+      var d = MC.Doctors.byId(App.param('id'));
+
+      if (!d || d.status === 'disabled') {
+        root.innerHTML = '<div class="card empty"><div class="big" aria-hidden="true">🩺</div><h2>Doctor not found</h2><p>This profile does not exist or is no longer available.</p><a class="btn btn-primary" href="doctors.html">Back to doctors</a></div>';
+        return;
+      }
+      document.title = d.name + ' – MediCare';
+
+      var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      function hr(h) { return U.fmtTime((h < 10 ? '0' : '') + h + ':00'); }
+      var canBook = user.role === 'patient';
+
+      // next 3 available days
+      var next = [];
+      for (var i = 0; i < 21 && next.length < 3; i++) {
+        var iso = U.addDays(i), r = MC.slotsFor(d, iso);
+        if (r.working) {
+          var free = r.slots.filter(function (s) { return s.available; });
+          if (free.length) next.push({ date: iso, count: free.length, first: free[0].time });
+        }
+      }
+
+      var stars = function (n) { return '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n); };
+
+      root.innerHTML =
+        '<p class="small"><a href="doctors.html">← Back to doctors</a></p>' +
+        '<div class="split">' +
+        '<div style="display:grid;gap:18px">' +
+          '<section class="card"><div class="profile-hero"><span class="avatar lg">' + esc(MC.Doctors.initials(d.name)) + '</span>' +
+            '<div class="info"><h1 style="margin-bottom:4px">' + esc(d.name) + '</h1><p class="muted" style="margin-bottom:8px">' + esc(d.specialty) + '</p>' +
+            '<div class="doctor-meta"><span class="rating">★ ' + d.rating.toFixed(1) + ' <span class="muted small">(' + d.reviews + ' reviews)</span></span><span class="tag">' + d.experience + ' years experience</span><span class="tag">' + d.fee + ' EGP / visit</span></div></div>' +
+            (canBook ? '<div class="btn-row"><a class="btn btn-primary" href="booking.html?doctor=' + encodeURIComponent(d.id) + '">Book appointment</a></div>' : '') +
+          '</div></section>' +
+          '<section class="card"><h2>About</h2><p>' + esc(d.bio || 'No biography provided yet.') + '</p>' +
+            '<dl class="kv"><dt>Education</dt><dd>' + esc(d.education || '—') + '</dd><dt>Languages</dt><dd>' + esc((d.languages || []).join(', ')) + '</dd><dt>Location</dt><dd>' + esc(d.location) + '</dd></dl></section>' +
+          '<section class="card"><h2>Patient reviews</h2>' +
+            ((d.reviewList && d.reviewList.length) ? d.reviewList.map(function (r) {
+              return '<div class="review"><div style="display:flex;justify-content:space-between;gap:8px"><strong>' + esc(r.by) + '</strong><span class="rating" aria-label="' + r.stars + ' out of 5">' + stars(r.stars) + '</span></div><p class="muted" style="margin:4px 0 0">' + esc(r.text) + '</p></div>';
+            }).join('') : '<p class="muted">No reviews yet.</p>') +
+          '</section>' +
+        '</div>' +
+        '<aside style="display:grid;gap:18px">' +
+          '<section class="card"><h2>Working hours</h2><dl class="kv">' +
+            dayNames.map(function (n, idx) {
+              var on = d.days.indexOf(idx) > -1;
+              return '<dt>' + n + '</dt><dd>' + (on ? hr(d.start) + ' – ' + hr(d.end) : '<span class="muted" style="font-weight:400">Closed</span>') + '</dd>';
+            }).join('') + '</dl></section>' +
+          '<section class="card"><h2>Next availability</h2>' +
+            (next.length ? next.map(function (n) {
+              return '<div class="summary-row"><span>' + U.fmtDate(n.date, { weekday: 'short', day: 'numeric', month: 'short' }) + '</span><span>' + n.count + ' slots · from ' + U.fmtTime(n.first) + '</span></div>';
+            }).join('') : '<p class="muted">No free slots in the next three weeks.</p>') +
+            (canBook ? '<a class="btn btn-primary btn-block" style="margin-top:14px" href="booking.html?doctor=' + encodeURIComponent(d.id) + '">Choose a time</a>' : '') +
+          '</section>' +
+        '</aside></div>';
+    })();
+  </script>
+</body>
+</html>

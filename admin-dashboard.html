@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Dashboard – MediCare</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%230f766e%27/%3E%3Cpath d=%27M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z%27 fill=%27white%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+  <main>
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <h1>Admin dashboard</h1>
+          <p>Manage doctors, users and all appointments.</p>
+        </div>
+        <button class="btn btn-outline btn-sm" id="resetBtn" type="button">Reset demo data</button>
+      </div>
+
+      <section class="grid grid-4" id="stats" aria-label="Summary" style="margin-bottom:22px"></section>
+
+      <div class="tabs" id="tabs" role="tablist" aria-label="Admin sections">
+        <button class="tab active" role="tab" aria-selected="true" data-t="doctors" type="button">Doctors</button>
+        <button class="tab" role="tab" aria-selected="false" data-t="appointments" type="button">Appointments</button>
+        <button class="tab" role="tab" aria-selected="false" data-t="users" type="button">Users</button>
+      </div>
+
+      <section class="card" id="panel" aria-live="polite"></section>
+    </div>
+  </main>
+  <div id="site-footer"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (function () {
+      var me = App.init({ roles: ['admin'], active: 'admin-dashboard.html' });
+      if (!me) return;
+      var U = MC.util, esc = App.esc;
+      var $ = function (id) { return document.getElementById(id); };
+      var tab = 'doctors';
+      var apptFilter = 'all';
+
+      function renderStats() {
+        var appts = MC.Appts.all(), users = MC.Users.all();
+        function stat(icon, cls, n, label) { return '<div class="card stat"><div class="stat-icon ' + cls + '" aria-hidden="true">' + icon + '</div><div><strong>' + n + '</strong><span>' + label + '</span></div></div>'; }
+        $('stats').innerHTML =
+          stat('🩺', '', MC.Doctors.all().length, 'Doctors') +
+          stat('👥', 'blue', users.filter(function (u) { return u.role === 'patient'; }).length, 'Patients') +
+          stat('📅', 'green', appts.length, 'Appointments') +
+          stat('⏳', 'amber', appts.filter(function (a) { return a.status === 'pending'; }).length, 'Pending');
+      }
+
+      /* ---------- doctors ---------- */
+      function doctorsPanel() {
+        var rows = MC.Doctors.all().map(function (d) {
+          var n = MC.Appts.forDoctor(d.id).length;
+          return '<tr><td><strong>' + esc(d.name) + '</strong><div class="muted small">' + esc(d.location) + '</div></td><td>' + esc(d.specialty) + '</td><td>' + d.experience + ' yrs</td><td>' + d.fee + ' EGP</td><td>' + n + '</td>' +
+            '<td><span class="badge ' + (d.status === 'disabled' ? 'disabled' : 'active') + '">' + (d.status === 'disabled' ? 'disabled' : 'active') + '</span></td>' +
+            '<td class="actions"><button class="btn btn-outline btn-sm" data-edit="' + esc(d.id) + '" type="button">Edit</button>' +
+            '<button class="btn btn-outline btn-sm" data-toggle="' + esc(d.id) + '" type="button">' + (d.status === 'disabled' ? 'Enable' : 'Disable') + '</button>' +
+            '<button class="btn btn-ghost-danger btn-sm" data-del="' + esc(d.id) + '" type="button">Delete</button></td></tr>';
+        }).join('');
+        return '<div class="card-head"><h2>Doctors</h2><button class="btn btn-primary btn-sm" id="addDoctor" type="button">＋ Add doctor</button></div>' +
+          '<div class="table-wrap"><table class="table"><thead><tr><th>Doctor</th><th>Specialty</th><th>Experience</th><th>Fee</th><th>Bookings</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }
+
+      function doctorForm(d) {
+        d = d || {};
+        var isNew = !d.id;
+        return '<form class="form" id="docForm" novalidate>' +
+          '<div class="field"><label for="fName">Full name</label><input id="fName" value="' + esc(d.name || 'Dr. ') + '"><div class="error"></div></div>' +
+          '<div class="form-row"><div class="field"><label for="fSpec">Specialty</label><input id="fSpec" value="' + esc(d.specialty || '') + '"><div class="error"></div></div>' +
+          '<div class="field"><label for="fLoc">Location</label><input id="fLoc" value="' + esc(d.location || '') + '"><div class="error"></div></div></div>' +
+          '<div class="form-row"><div class="field"><label for="fExp">Experience (years)</label><input id="fExp" type="number" min="0" max="60" value="' + (d.experience == null ? '' : d.experience) + '"><div class="error"></div></div>' +
+          '<div class="field"><label for="fFee">Fee (EGP)</label><input id="fFee" type="number" min="0" step="10" value="' + (d.fee == null ? '' : d.fee) + '"><div class="error"></div></div></div>' +
+          '<div class="field"><label for="fBio">Short bio</label><textarea id="fBio" maxlength="400">' + esc(d.bio || '') + '</textarea></div>' +
+          (isNew ? '<div class="alert info small">Optional: create a login for this doctor so they can use the Doctor Dashboard.</div>' +
+            '<div class="form-row"><div class="field"><label for="fEmail">Login email</label><input id="fEmail" type="email"><div class="error"></div></div>' +
+            '<div class="field"><label for="fPass">Password</label><input id="fPass" type="text" placeholder="min 4 characters"><div class="error"></div></div></div>' : '') +
+          '</form>';
+      }
+
+      function openDoctorModal(d) {
+        var isNew = !d;
+        App.modal({
+          title: isNew ? 'Add doctor' : 'Edit doctor', body: doctorForm(d),
+          actions: [
+            { label: 'Cancel', cls: 'btn-outline' },
+            { label: 'Save', cls: 'btn-primary', onClick: function (close, box) {
+              function v(id) { return box.querySelector('#' + id); }
+              function err(el, m) { var f = el.closest('.field'); f.classList.toggle('invalid', !!m); f.querySelector('.error').textContent = m || ''; return !m; }
+              var ok = err(v('fName'), v('fName').value.trim().length < 5 ? 'Enter the doctor\'s full name.' : '');
+              ok = err(v('fSpec'), !v('fSpec').value.trim() ? 'Specialty is required.' : '') && ok;
+              ok = err(v('fLoc'), !v('fLoc').value.trim() ? 'Location is required.' : '') && ok;
+              ok = err(v('fExp'), v('fExp').value === '' || Number(v('fExp').value) < 0 ? 'Enter years of experience.' : '') && ok;
+              ok = err(v('fFee'), v('fFee').value === '' || Number(v('fFee').value) < 0 ? 'Enter a valid fee.' : '') && ok;
+              var email = isNew ? v('fEmail').value.trim() : '', pass = isNew ? v('fPass').value : '';
+              if (isNew && (email || pass)) {
+                ok = err(v('fEmail'), !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? 'Enter a valid email.' : (MC.Users.byEmail(email) ? 'Email already in use.' : '')) && ok;
+                ok = err(v('fPass'), pass.length < 4 ? 'At least 4 characters.' : '') && ok;
+              }
+              if (!ok) return;
+              var data = { name: v('fName').value.trim(), specialty: v('fSpec').value.trim(), location: v('fLoc').value.trim(), experience: Number(v('fExp').value), fee: Number(v('fFee').value), bio: v('fBio').value.trim() };
+              if (isNew) {
+                var nd = MC.Doctors.add(data);
+                if (email) {
+                  var list = MC.Users.all();
+                  var uid = U.uid('u');
+                  list.push({ id: uid, name: nd.name, email: email, password: pass, role: 'doctor', phone: '', status: 'active', doctorId: nd.id });
+                  MC.Users.save(list);
+                  MC.Doctors.update(nd.id, { userId: uid });
+                }
+                App.toast('Doctor added.', 'ok');
+              } else { MC.Doctors.update(d.id, data); App.toast('Doctor updated.', 'ok'); }
+              close(); renderAll();
+            } }
+          ]
+        });
+      }
+
+      /* ---------- appointments ---------- */
+      function appointmentsPanel() {
+        var list = MC.Appts.all().filter(function (a) { return apptFilter === 'all' || a.status === apptFilter; })
+          .sort(function (a, b) { return (b.date + b.time).localeCompare(a.date + a.time); });
+        var rows = list.map(function (a) {
+          var p = MC.Users.byId(a.patientId) || { name: 'Deleted user' };
+          var d = MC.Doctors.byId(a.doctorId) || { name: 'Deleted doctor' };
+          return '<tr><td>' + esc(p.name) + '</td><td>' + esc(d.name) + '</td><td>' + U.fmtDate(a.date, { day: 'numeric', month: 'short', year: 'numeric' }) + '<div class="muted small">' + U.fmtTime(a.time) + '</div></td>' +
+            '<td>' + App.statusBadge(a.status) + '</td>' +
+            '<td class="actions"><select class="input" style="width:auto;padding:6px 8px;font-size:.82rem" data-status="' + esc(a.id) + '" aria-label="Change status">' +
+            ['pending', 'confirmed', 'completed', 'cancelled'].map(function (s) { return '<option' + (s === a.status ? ' selected' : '') + '>' + s + '</option>'; }).join('') +
+            '</select><button class="btn btn-ghost-danger btn-sm" data-delappt="' + esc(a.id) + '" type="button">Delete</button></td></tr>';
+        }).join('');
+        return '<div class="card-head"><h2>All appointments</h2><div class="field" style="margin:0"><label class="sr-only" for="apptFilter">Status</label><select id="apptFilter">' +
+          ['all', 'pending', 'confirmed', 'completed', 'cancelled'].map(function (s) { return '<option value="' + s + '"' + (s === apptFilter ? ' selected' : '') + '>' + (s === 'all' ? 'All statuses' : s[0].toUpperCase() + s.slice(1)) + '</option>'; }).join('') + '</select></div></div>' +
+          (list.length ? '<div class="table-wrap"><table class="table"><thead><tr><th>Patient</th><th>Doctor</th><th>When</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="empty"><p>No appointments found.</p></div>');
+      }
+
+      /* ---------- users ---------- */
+      function usersPanel() {
+        var rows = MC.Users.all().map(function (u) {
+          var self = u.id === me.id;
+          return '<tr><td><strong>' + esc(u.name) + '</strong></td><td>' + esc(u.email) + '</td><td><span class="badge role">' + esc(u.role) + '</span></td>' +
+            '<td><span class="badge ' + (u.status === 'disabled' ? 'disabled' : 'active') + '">' + (u.status === 'disabled' ? 'disabled' : 'active') + '</span></td>' +
+            '<td class="actions">' + (self ? '<span class="muted small">You</span>' :
+              '<button class="btn btn-outline btn-sm" data-utoggle="' + esc(u.id) + '" type="button">' + (u.status === 'disabled' ? 'Enable' : 'Disable') + '</button>' +
+              '<button class="btn btn-ghost-danger btn-sm" data-udel="' + esc(u.id) + '" type="button">Delete</button>') + '</td></tr>';
+        }).join('');
+        return '<div class="card-head"><h2>Users</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }
+
+      function renderPanel() {
+        $('panel').innerHTML = tab === 'doctors' ? doctorsPanel() : tab === 'appointments' ? appointmentsPanel() : usersPanel();
+      }
+      function renderAll() { renderStats(); renderPanel(); }
+
+      $('tabs').addEventListener('click', function (e) {
+        var t = e.target.closest('.tab'); if (!t) return;
+        tab = t.dataset.t;
+        document.querySelectorAll('.tab').forEach(function (x) { var on = x === t; x.classList.toggle('active', on); x.setAttribute('aria-selected', String(on)); });
+        renderPanel();
+      });
+
+      $('panel').addEventListener('click', function (e) {
+        var t = e.target.closest('button'); if (!t) return;
+        if (t.id === 'addDoctor') return openDoctorModal(null);
+        if (t.dataset.edit) return openDoctorModal(MC.Doctors.byId(t.dataset.edit));
+        if (t.dataset.toggle) {
+          var d = MC.Doctors.byId(t.dataset.toggle); MC.Doctors.update(d.id, { status: d.status === 'disabled' ? 'active' : 'disabled' });
+          App.toast('Doctor ' + (d.status === 'disabled' ? 'enabled' : 'disabled') + '.', 'ok'); return renderAll();
+        }
+        if (t.dataset.del) {
+          var id = t.dataset.del;
+          return App.confirmBox('Delete doctor?', 'The doctor and all of their appointments will be removed. This cannot be undone.', 'Delete', function () {
+            MC.Appts.save(MC.Appts.all().filter(function (a) { return a.doctorId !== id; }));
+            MC.Users.save(MC.Users.all().filter(function (u) { return u.doctorId !== id; }));
+            MC.Doctors.remove(id); App.toast('Doctor deleted.', 'ok'); renderAll();
+          });
+        }
+        if (t.dataset.delappt) {
+          var aid = t.dataset.delappt;
+          return App.confirmBox('Delete appointment?', 'This permanently removes the appointment.', 'Delete', function () { MC.Appts.remove(aid); App.toast('Appointment deleted.', 'ok'); renderAll(); });
+        }
+        if (t.dataset.utoggle) {
+          var u = MC.Users.byId(t.dataset.utoggle); MC.Users.update(u.id, { status: u.status === 'disabled' ? 'active' : 'disabled' });
+          App.toast('User ' + (u.status === 'disabled' ? 'enabled' : 'disabled') + '.', 'ok'); return renderAll();
+        }
+        if (t.dataset.udel) {
+          var uid = t.dataset.udel;
+          return App.confirmBox('Delete user?', 'The account and its appointments will be removed.', 'Delete', function () {
+            MC.Appts.save(MC.Appts.all().filter(function (a) { return a.patientId !== uid; }));
+            MC.Users.remove(uid); App.toast('User deleted.', 'ok'); renderAll();
+          });
+        }
+      });
+
+      $('panel').addEventListener('change', function (e) {
+        if (e.target.id === 'apptFilter') { apptFilter = e.target.value; return renderPanel(); }
+        if (e.target.dataset.status) { MC.Appts.setStatus(e.target.dataset.status, e.target.value); App.toast('Status updated.', 'ok'); renderAll(); }
+      });
+
+      $('resetBtn').addEventListener('click', function () {
+        App.confirmBox('Reset demo data?', 'All doctors, users and appointments will be restored to the original demo data and you will be logged out.', 'Reset', function () {
+          MC.resetAll(); location.href = 'index.html';
+        });
+      });
+
+      renderAll();
+    })();
+  </script>
+</body>
+</html>

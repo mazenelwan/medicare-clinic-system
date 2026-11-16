@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doctor Dashboard – MediCare</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%230f766e%27/%3E%3Cpath d=%27M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z%27 fill=%27white%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+  <main>
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <h1 id="welcome">Doctor dashboard</h1>
+          <p>Manage patient requests and your schedule.</p>
+        </div>
+        <a class="btn btn-outline" id="viewProfile" href="doctors.html">View my public profile</a>
+      </div>
+
+      <section class="grid grid-4" id="stats" aria-label="Summary" style="margin-bottom:22px"></section>
+
+      <div class="split">
+        <section class="card" aria-labelledby="apTitle">
+          <div class="card-head"><h2 id="apTitle">Appointments</h2></div>
+          <div class="tabs" id="tabs" role="tablist" aria-label="Filter appointments">
+            <button class="tab active" role="tab" aria-selected="true" data-f="pending" type="button">Requests</button>
+            <button class="tab" role="tab" aria-selected="false" data-f="today" type="button">Today</button>
+            <button class="tab" role="tab" aria-selected="false" data-f="upcoming" type="button">Upcoming</button>
+            <button class="tab" role="tab" aria-selected="false" data-f="history" type="button">History</button>
+          </div>
+          <div class="appt-list" id="list" aria-live="polite"></div>
+        </section>
+
+        <aside class="card" aria-labelledby="schTitle">
+          <h2 id="schTitle">My schedule</h2>
+          <p class="muted small">Patients can only book within these days and hours.</p>
+          <form class="form" id="schedForm" novalidate>
+            <fieldset style="border:0;padding:0;margin:0">
+              <legend style="font-weight:600;font-size:.88rem;margin-bottom:6px;padding:0">Working days</legend>
+              <div class="doctor-meta" id="dayChecks"></div>
+            </fieldset>
+            <div class="form-row">
+              <div class="field"><label for="startH">From</label><select id="startH"></select></div>
+              <div class="field"><label for="endH">To</label><select id="endH"></select></div>
+            </div>
+            <div class="field"><label for="fee">Consultation fee (EGP)</label><input id="fee" type="number" min="0" step="10"><div class="error"></div></div>
+            <button class="btn btn-primary" type="submit">Save schedule</button>
+          </form>
+        </aside>
+      </div>
+    </div>
+  </main>
+  <div id="site-footer"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (function () {
+      var user = App.init({ roles: ['doctor'], active: 'doctor-dashboard.html' });
+      if (!user) return;
+      var U = MC.util, esc = App.esc;
+      var $ = function (id) { return document.getElementById(id); };
+      var doc = MC.Doctors.byId(user.doctorId);
+
+      if (!doc) {
+        document.querySelector('main .container').innerHTML = '<div class="card empty"><div class="big" aria-hidden="true">🩺</div><h2>No doctor profile linked</h2><p>Ask an administrator to link your account to a doctor profile.</p></div>';
+        return;
+      }
+      $('welcome').textContent = 'Good day, ' + doc.name;
+      $('viewProfile').href = 'doctor-profile.html?id=' + encodeURIComponent(doc.id);
+
+      var filter = 'pending';
+
+      function mine() { return MC.Appts.forDoctor(doc.id); }
+
+      function renderStats() {
+        var all = mine(), today = U.todayISO();
+        var todays = all.filter(function (a) { return a.date === today && (a.status === 'confirmed' || a.status === 'pending'); }).length;
+        var pend = all.filter(function (a) { return a.status === 'pending'; }).length;
+        var done = all.filter(function (a) { return a.status === 'completed'; }).length;
+        var patients = {}; all.forEach(function (a) { if (a.status !== 'cancelled') patients[a.patientId] = 1; });
+        function stat(icon, cls, n, label) { return '<div class="card stat"><div class="stat-icon ' + cls + '" aria-hidden="true">' + icon + '</div><div><strong>' + n + '</strong><span>' + label + '</span></div></div>'; }
+        $('stats').innerHTML = stat('📅', '', todays, "Today's appointments") + stat('⏳', 'amber', pend, 'Pending requests') + stat('✅', 'green', done, 'Completed') + stat('👥', 'blue', Object.keys(patients).length, 'Patients');
+      }
+
+      function matches(a) {
+        var today = U.todayISO();
+        if (filter === 'pending') return a.status === 'pending';
+        if (filter === 'today') return a.date === today && (a.status === 'confirmed' || a.status === 'pending');
+        if (filter === 'upcoming') return a.status === 'confirmed' && a.date > today;
+        return a.status === 'completed' || a.status === 'cancelled' || (a.date < today);
+      }
+
+      function renderList() {
+        var list = mine().filter(matches).sort(function (a, b) { return (a.date + a.time).localeCompare(b.date + b.time); });
+        if (filter === 'history') list.reverse();
+        var box = $('list');
+        if (!list.length) { box.innerHTML = '<div class="empty"><div class="big" aria-hidden="true">📭</div><p>Nothing to show here.</p></div>'; return; }
+        box.innerHTML = list.map(function (a) {
+          var p = MC.Users.byId(a.patientId) || { name: 'Unknown patient', phone: '' };
+          var dt = U.parseISO(a.date);
+          var btns = '';
+          if (a.status === 'pending') btns = '<button class="btn btn-ok btn-sm" data-act="confirmed" data-id="' + esc(a.id) + '" type="button">Confirm</button><button class="btn btn-ghost-danger btn-sm" data-act="cancelled" data-id="' + esc(a.id) + '" type="button">Decline</button>';
+          else if (a.status === 'confirmed') btns = '<button class="btn btn-primary btn-sm" data-act="completed" data-id="' + esc(a.id) + '" type="button">Mark completed</button><button class="btn btn-ghost-danger btn-sm" data-act="cancelled" data-id="' + esc(a.id) + '" type="button">Cancel</button>';
+          return '<article class="appt"><div class="appt-main"><div class="appt-date"><strong>' + dt.getDate() + '</strong><span>' + dt.toLocaleDateString('en-GB', { month: 'short' }) + '</span></div>' +
+            '<div style="min-width:0"><h3>' + esc(p.name) + '</h3><p>' + U.fmtDate(a.date, { weekday: 'short' }) + ' · ' + U.fmtTime(a.time) + (a.phone || p.phone ? ' · ' + esc(a.phone || p.phone) : '') + '</p><p>' + esc(a.reason || '') + '</p></div></div>' +
+            '<div class="appt-actions">' + App.statusBadge(a.status) + btns + '</div></article>';
+        }).join('');
+      }
+
+      $('tabs').addEventListener('click', function (e) {
+        var t = e.target.closest('.tab'); if (!t) return;
+        filter = t.dataset.f;
+        document.querySelectorAll('.tab').forEach(function (x) { var on = x === t; x.classList.toggle('active', on); x.setAttribute('aria-selected', String(on)); });
+        renderList();
+      });
+
+      $('list').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-act]'); if (!b) return;
+        var act = b.dataset.act, id = b.dataset.id;
+        function apply() { MC.Appts.setStatus(id, act); App.toast('Appointment ' + act + '.', 'ok'); renderStats(); renderList(); }
+        if (act === 'cancelled') App.confirmBox('Cancel this appointment?', 'The patient will see it as cancelled and the slot becomes free again.', 'Yes, cancel', apply);
+        else apply();
+      });
+
+      /* schedule form */
+      var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      $('dayChecks').innerHTML = dayNames.map(function (n, i) {
+        return '<label class="tag" style="cursor:pointer"><input type="checkbox" value="' + i + '"' + (doc.days.indexOf(i) > -1 ? ' checked' : '') + '> ' + n + '</label>';
+      }).join('');
+      var hrs = ''; for (var h = 6; h <= 22; h++) hrs += '<option value="' + h + '">' + U.fmtTime((h < 10 ? '0' : '') + h + ':00') + '</option>';
+      $('startH').innerHTML = hrs; $('endH').innerHTML = hrs;
+      $('startH').value = doc.start; $('endH').value = doc.end; $('fee').value = doc.fee;
+
+      $('schedForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var days = Array.prototype.slice.call(document.querySelectorAll('#dayChecks input:checked')).map(function (c) { return Number(c.value); });
+        var s = Number($('startH').value), en = Number($('endH').value), fee = Number($('fee').value);
+        var feeF = $('fee').closest('.field');
+        if (!days.length) { App.toast('Select at least one working day.', 'error'); return; }
+        if (en <= s) { App.toast('End time must be after start time.', 'error'); return; }
+        if (!(fee >= 0) || $('fee').value === '') { feeF.classList.add('invalid'); feeF.querySelector('.error').textContent = 'Enter a valid fee.'; return; }
+        feeF.classList.remove('invalid'); feeF.querySelector('.error').textContent = '';
+        MC.Doctors.update(doc.id, { days: days, start: s, end: en, fee: fee });
+        App.toast('Schedule saved.', 'ok');
+      });
+
+      renderStats(); renderList();
+    })();
+  </script>
+</body>
+</html>

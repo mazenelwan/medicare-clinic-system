@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Book Appointment – MediCare</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%230f766e%27/%3E%3Cpath d=%27M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z%27 fill=%27white%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+  <main>
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <h1 id="pageTitle">Book an appointment</h1>
+          <p id="pageSub">Choose a doctor, a date and an available time.</p>
+        </div>
+      </div>
+
+      <div class="split">
+        <form class="card form" id="bookForm" novalidate>
+          <div class="field">
+            <label for="doctor">Doctor</label>
+            <select id="doctor" required></select>
+            <div class="error"></div>
+          </div>
+
+          <div class="field">
+            <label for="date">Date</label>
+            <input class="date-input" id="date" type="date" required>
+            <div class="error"></div>
+          </div>
+
+          <div class="field" id="slotField">
+            <label id="slotLabel">Available times</label>
+            <div id="slotNote" class="muted small" style="margin-bottom:8px"></div>
+            <div class="slots" id="slots" role="radiogroup" aria-labelledby="slotLabel"></div>
+            <div class="error" id="slotErr"></div>
+          </div>
+
+          <div id="detailsBlock" style="display:grid;gap:16px">
+            <div class="form-row">
+              <div class="field">
+                <label for="phone">Contact phone</label>
+                <input id="phone" type="tel" autocomplete="tel" placeholder="+20 1XX XXX XXXX" required>
+                <div class="error"></div>
+              </div>
+              <div class="field">
+                <label for="visitType">Visit type</label>
+                <select id="visitType">
+                  <option>First visit</option>
+                  <option>Follow-up</option>
+                  <option>Consultation</option>
+                  <option>Check-up</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label for="reason">Reason for visit</label>
+              <textarea id="reason" maxlength="300" placeholder="Briefly describe your symptoms or the reason for the visit" required></textarea>
+              <div class="error"></div>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn btn-primary" type="submit" id="submitBtn">Confirm booking</button>
+            <a class="btn btn-outline" href="doctors.html" id="cancelLink">Cancel</a>
+          </div>
+        </form>
+
+        <aside class="card" aria-labelledby="sumTitle">
+          <h2 id="sumTitle">Summary</h2>
+          <div id="summary"></div>
+        </aside>
+      </div>
+    </div>
+  </main>
+  <div id="site-footer"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (function () {
+      var user = App.init({ roles: ['patient'], active: 'booking.html' });
+      if (!user) return;
+      var U = MC.util, esc = App.esc;
+      var $ = function (id) { return document.getElementById(id); };
+
+      var rescheduleId = App.param('reschedule');
+      var existing = rescheduleId ? MC.Appts.byId(rescheduleId) : null;
+      if (existing && existing.patientId !== user.id) existing = null;
+      if (rescheduleId && !existing) { App.toast('That appointment could not be found.', 'error'); location.replace('my-appointments.html'); return; }
+
+      var doctors = MC.Doctors.active();
+      var selectedTime = null;
+      var docSel = $('doctor'), dateEl = $('date');
+
+      docSel.innerHTML = '<option value="">Select a doctor…</option>' + doctors.map(function (d) {
+        return '<option value="' + esc(d.id) + '">' + esc(d.name) + ' – ' + esc(d.specialty) + '</option>';
+      }).join('');
+
+      var pre = existing ? existing.doctorId : App.param('doctor');
+      if (pre && doctors.some(function (d) { return d.id === pre; })) docSel.value = pre;
+
+      dateEl.min = U.todayISO();
+      dateEl.max = U.addDays(90);
+      dateEl.value = existing ? existing.date : '';
+      if (!existing) dateEl.value = U.todayISO();
+
+      $('phone').value = user.phone || '';
+
+      if (existing) {
+        $('pageTitle').textContent = 'Reschedule appointment';
+        $('pageSub').textContent = 'Pick a new date and time. The appointment will need to be confirmed again.';
+        docSel.disabled = true;
+        $('detailsBlock').classList.add('hidden');
+        $('submitBtn').textContent = 'Confirm new time';
+        $('cancelLink').href = 'my-appointments.html';
+      }
+
+      function setErr(el, msg) {
+        var f = el.closest('.field'); f.classList.toggle('invalid', !!msg);
+        var e = f.querySelector('.error'); if (e) e.textContent = msg || '';
+        return !msg;
+      }
+
+      function renderSlots() {
+        var d = MC.Doctors.byId(docSel.value);
+        var box = $('slots'), note = $('slotNote');
+        selectedTime = null; $('slotErr').textContent = '';
+        if (!d) { box.innerHTML = ''; note.textContent = 'Select a doctor to see available times.'; renderSummary(); return; }
+        if (!dateEl.value) { box.innerHTML = ''; note.textContent = 'Select a date.'; renderSummary(); return; }
+        var r = MC.slotsFor(d, dateEl.value);
+        if (!r.working) {
+          box.innerHTML = ''; note.textContent = d.name + ' does not work on this day. Please choose another date.'; renderSummary(); return;
+        }
+        var free = r.slots.filter(function (s) { return s.available; }).length;
+        note.textContent = free ? free + ' time slots available' : 'No free slots on this day. Please choose another date.';
+        box.innerHTML = r.slots.map(function (s) {
+          return '<button type="button" class="slot" role="radio" aria-checked="false" data-time="' + s.time + '"' + (s.available ? '' : ' disabled') + '>' + U.fmtTime(s.time) + '</button>';
+        }).join('');
+        renderSummary();
+      }
+
+      $('slots').addEventListener('click', function (e) {
+        var b = e.target.closest('.slot'); if (!b || b.disabled) return;
+        document.querySelectorAll('.slot.selected').forEach(function (x) { x.classList.remove('selected'); x.setAttribute('aria-checked', 'false'); });
+        b.classList.add('selected'); b.setAttribute('aria-checked', 'true');
+        selectedTime = b.dataset.time; $('slotErr').textContent = ''; $('slotField').classList.remove('invalid');
+        renderSummary();
+      });
+
+      function renderSummary() {
+        var d = MC.Doctors.byId(docSel.value);
+        function row(k, v) { return '<div class="summary-row"><span class="muted">' + k + '</span><span>' + v + '</span></div>'; }
+        if (!d) { $('summary').innerHTML = '<p class="muted">Your booking details will appear here.</p>'; return; }
+        $('summary').innerHTML =
+          '<div class="doctor-top" style="margin-bottom:12px"><span class="avatar md">' + esc(MC.Doctors.initials(d.name)) + '</span><div><h3>' + esc(d.name) + '</h3><span class="muted small">' + esc(d.specialty) + '</span></div></div>' +
+          row('Date', dateEl.value ? U.fmtDate(dateEl.value) : '—') +
+          row('Time', selectedTime ? U.fmtTime(selectedTime) : '—') +
+          row('Location', esc(d.location)) +
+          row('Fee', d.fee + ' EGP');
+      }
+
+      docSel.addEventListener('change', function () { setErr(docSel, ''); renderSlots(); });
+      dateEl.addEventListener('change', function () { setErr(dateEl, ''); renderSlots(); });
+
+      $('bookForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var ok = setErr(docSel, !docSel.value ? 'Please select a doctor.' : '');
+        var dv = dateEl.value;
+        ok = setErr(dateEl, !dv ? 'Please select a date.' : (dv < U.todayISO() ? 'The date cannot be in the past.' : '')) && ok;
+        if (!selectedTime) { $('slotErr').textContent = 'Please choose a time slot.'; ok = false; } else { $('slotErr').textContent = ''; }
+        var phone = $('phone'), reason = $('reason');
+        if (!existing) {
+          ok = setErr(phone, !/^[+\d][\d\s-]{6,}$/.test(phone.value.trim()) ? 'Enter a valid phone number.' : '') && ok;
+          ok = setErr(reason, reason.value.trim().length < 5 ? 'Please describe the reason for your visit (at least 5 characters).' : '') && ok;
+        }
+        if (!ok) return;
+
+        if (existing) {
+          var rr = MC.Appts.reschedule(existing.id, dv, selectedTime);
+          if (!rr.ok) { App.toast(rr.error, 'error'); renderSlots(); return; }
+          App.toast('Appointment rescheduled.', 'ok');
+          setTimeout(function () { location.href = 'my-appointments.html'; }, 600);
+          return;
+        }
+
+        var res = MC.Appts.create({ patientId: user.id, doctorId: docSel.value, date: dv, time: selectedTime, reason: (reason.value.trim() + ' (' + $('visitType').value + ')'), phone: phone.value.trim() });
+        if (!res.ok) { App.toast(res.error, 'error'); renderSlots(); return; }
+        var d = MC.Doctors.byId(docSel.value);
+        App.modal({
+          title: 'Booking requested ✅',
+          body: '<p>Your appointment with <strong>' + esc(d.name) + '</strong> on <strong>' + U.fmtDate(dv) + '</strong> at <strong>' + U.fmtTime(selectedTime) + '</strong> has been sent. The doctor will confirm it shortly.</p>',
+          actions: [
+            { label: 'Book another', cls: 'btn-outline', onClick: function () { location.href = 'doctors.html'; } },
+            { label: 'View my appointments', cls: 'btn-primary', onClick: function () { location.href = 'my-appointments.html'; } }
+          ]
+        });
+      });
+
+      renderSlots();
+      renderSummary();
+    })();
+  </script>
+</body>
+</html>

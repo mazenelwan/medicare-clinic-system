@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doctors – MediCare</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%230f766e%27/%3E%3Cpath d=%27M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z%27 fill=%27white%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+  <main>
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <h1>Find a doctor</h1>
+          <p id="resultCount">Search by name or specialty and book instantly.</p>
+        </div>
+      </div>
+
+      <form class="toolbar" id="filters" role="search" aria-label="Filter doctors" onsubmit="return false">
+        <div class="field grow">
+          <label for="q">Search</label>
+          <input id="q" type="search" placeholder="Doctor name, specialty or location…">
+        </div>
+        <div class="field">
+          <label for="specialty">Specialty</label>
+          <select id="specialty"><option value="">All specialties</option></select>
+        </div>
+        <div class="field">
+          <label for="sort">Sort by</label>
+          <select id="sort">
+            <option value="rating">Highest rated</option>
+            <option value="experience">Most experienced</option>
+            <option value="fee-asc">Fee: low to high</option>
+            <option value="fee-desc">Fee: high to low</option>
+            <option value="name">Name A–Z</option>
+          </select>
+        </div>
+        <div class="field" style="flex:0 0 auto;align-self:flex-end">
+          <button class="btn btn-outline" type="button" id="reset">Reset</button>
+        </div>
+      </form>
+
+      <div class="grid grid-3" id="list" aria-live="polite"></div>
+    </div>
+  </main>
+  <div id="site-footer"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (function () {
+      var user = App.init({ active: 'doctors.html' });
+      if (!user) return;
+      var esc = App.esc;
+      var $ = function (id) { return document.getElementById(id); };
+
+      var sel = $('specialty');
+      MC.Doctors.specialties().forEach(function (s) { var o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
+      var pre = App.param('specialty');
+      if (pre) sel.value = pre;
+      if (App.param('q')) $('q').value = App.param('q');
+
+      function render() {
+        var q = $('q').value.trim().toLowerCase();
+        var sp = sel.value;
+        var list = MC.Doctors.active().filter(function (d) {
+          if (sp && d.specialty !== sp) return false;
+          if (!q) return true;
+          return (d.name + ' ' + d.specialty + ' ' + d.location).toLowerCase().indexOf(q) > -1;
+        });
+        var s = $('sort').value;
+        list.sort(function (a, b) {
+          if (s === 'experience') return b.experience - a.experience;
+          if (s === 'fee-asc') return a.fee - b.fee;
+          if (s === 'fee-desc') return b.fee - a.fee;
+          if (s === 'name') return a.name.localeCompare(b.name);
+          return b.rating - a.rating;
+        });
+        $('resultCount').textContent = list.length + (list.length === 1 ? ' doctor found' : ' doctors found');
+        if (!list.length) {
+          $('list').innerHTML = '<div class="card empty" style="grid-column:1/-1"><div class="big" aria-hidden="true">🔎</div><h3>No doctors match your search</h3><p>Try a different name or clear the filters.</p></div>';
+          return;
+        }
+        var canBook = user.role === 'patient';
+        $('list').innerHTML = list.map(function (d) {
+          return '<article class="card doctor-card"><div class="doctor-top"><span class="avatar md">' + esc(MC.Doctors.initials(d.name)) + '</span>' +
+            '<div style="min-width:0"><h3>' + esc(d.name) + '</h3><span class="muted small">' + esc(d.specialty) + '</span></div></div>' +
+            '<div class="doctor-meta"><span class="rating" aria-label="Rating ' + d.rating + ' out of 5">★ ' + d.rating.toFixed(1) + ' <span class="muted small">(' + d.reviews + ')</span></span><span class="tag">' + d.experience + ' yrs</span><span class="tag">' + d.fee + ' EGP</span></div>' +
+            '<p class="muted small" style="margin:0">📍 ' + esc(d.location) + '</p>' +
+            '<div class="btn-row"><a class="btn btn-outline btn-sm" href="doctor-profile.html?id=' + encodeURIComponent(d.id) + '">View profile</a>' +
+            (canBook ? '<a class="btn btn-primary btn-sm" href="booking.html?doctor=' + encodeURIComponent(d.id) + '">Book now</a>' : '') + '</div></article>';
+        }).join('');
+      }
+
+      ['input', 'change'].forEach(function (ev) { $('filters').addEventListener(ev, render); });
+      $('reset').addEventListener('click', function () { $('q').value = ''; sel.value = ''; $('sort').value = 'rating'; render(); });
+      render();
+    })();
+  </script>
+</body>
+</html>
